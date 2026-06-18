@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workshop · Por trás de cada requisição — Judit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#11151F;
+    --ink-2:#171E2C;
+    --ink-3:#1F2738;
+    --paper:#F3EEE3;
+    --white:#ECE7DB;
+    --muted:#8A93A6;
+    --muted-2:#5E6678;
+    --seal:#1FC16B;        /* verde da marca Judit (acento principal) */
+    --signal:#4FD1C5;      /* sinal digital */
+    --green:#5BD17A;
+    --amber:#E0A82E;
+    --coral:#F0685B;
+    --line:rgba(243,238,227,0.12);
+    --line-strong:rgba(243,238,227,0.22);
+    --display:"Fraunces",Georgia,serif;
+    --body:"Inter",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    color:var(--white);
+    font-family:var(--body);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Deck frame ---------- */
+  .deck{position:fixed;inset:0;overflow:hidden}
+
+  .slide{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    padding:clamp(28px,5vw,90px);
+    padding-top:clamp(64px,7vh,96px);
+    padding-bottom:clamp(56px,8vh,84px);
+    opacity:0;visibility:hidden;
+    transform:translateY(14px);
+    transition:opacity .5s ease,transform .5s ease,visibility .5s;
+    overflow:hidden;
+  }
+  .slide.active{opacity:1;visibility:visible;transform:none}
+  .slide.prev{transform:translateY(-14px)}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px clamp(28px,5vw,90px);
+    font-family:var(--mono);font-size:12px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);
+    pointer-events:none;
+  }
+  .brand{display:flex;align-items:center;gap:10px;color:var(--white)}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--seal);box-shadow:0 0 12px var(--seal)}
+  .brand b{font-weight:700;letter-spacing:.16em}
+  .topbar .right{color:var(--muted)}
+
+  /* ---------- Progress dots ---------- */
+  .progress{
+    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);
+    z-index:30;display:flex;gap:7px;align-items:center;
+  }
+  .progress button{
+    width:7px;height:7px;border-radius:50%;border:none;
+    background:var(--muted-2);cursor:pointer;padding:0;
+    transition:all .3s ease;
+  }
+  .progress button:hover{background:var(--muted)}
+  .progress button.on{background:var(--seal);width:22px;border-radius:4px}
+
+  /* ---------- Nav arrows ---------- */
+  .nav{position:fixed;bottom:14px;z-index:30;display:flex;gap:8px;right:clamp(20px,4vw,48px)}
+  .nav button{
+    width:40px;height:40px;border-radius:10px;cursor:pointer;
+    background:var(--ink-2);border:1px solid var(--line);color:var(--white);
+    font-size:16px;display:grid;place-items:center;transition:all .2s ease;
+  }
+  .nav button:hover{background:var(--ink-3);border-color:var(--line-strong)}
+  .nav button:disabled{opacity:.3;cursor:default}
+  .counter{position:fixed;bottom:22px;left:clamp(20px,4vw,48px);z-index:30;
+    font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.1em}
+  .counter b{color:var(--white)}
+
+  /* ---------- Typographic system ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:13px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--seal);display:flex;align-items:center;gap:14px;
+    margin-bottom:22px;
+  }
+  .eyebrow .num{color:var(--muted)}
+  .eyebrow .bar{height:1px;width:46px;background:var(--seal);opacity:.6}
+
+  h1{font-family:var(--display);font-weight:600;line-height:1.02;
+    font-size:clamp(40px,7vw,104px);letter-spacing:-.02em}
+  h2{font-family:var(--display);font-weight:600;line-height:1.05;
+    font-size:clamp(32px,4.6vw,64px);letter-spacing:-.015em;margin-bottom:6px}
+  h2 em{font-style:italic;color:var(--seal)}
+  h1 em{font-style:italic;color:var(--seal)}
+  .lead{font-size:clamp(17px,1.6vw,22px);color:var(--muted);max-width:62ch;line-height:1.5;margin-top:18px}
+  .slide-body{margin-top:auto;margin-bottom:auto}
+
+  p{line-height:1.55}
+  strong{color:var(--white);font-weight:600}
+  .hl{color:var(--seal);font-weight:600}
+  .hl2{color:var(--signal);font-weight:600}
+
+  /* ---------- Layout helpers ---------- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,4vw,64px);align-items:center;height:100%}
+  .split.narrow{grid-template-columns:1.05fr .95fr}
+  .stack{display:flex;flex-direction:column;justify-content:center;height:100%}
+  .canvas-wrap{position:relative;width:100%;height:100%;min-height:300px}
+  canvas{position:absolute;inset:0;width:100%;height:100%}
+
+  /* ---------- Cards ---------- */
+  .cards{display:grid;gap:16px;margin-top:8px}
+  .cards.c3{grid-template-columns:repeat(3,1fr)}
+  .cards.c2{grid-template-columns:repeat(2,1fr)}
+  .card{
+    background:var(--ink-2);border:1px solid var(--line);border-radius:14px;
+    padding:22px 22px;transition:border-color .2s ease,transform .2s ease;
+  }
+  .card:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+  .card .k{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--seal);margin-bottom:10px}
+  .card h3{font-family:var(--display);font-weight:600;font-size:21px;margin-bottom:7px;letter-spacing:-.01em}
+  .card p{font-size:14.5px;color:var(--muted);line-height:1.5}
+
+  .agenda{display:grid;grid-template-columns:1fr 1fr;gap:14px 40px;margin-top:10px}
+  .agenda .item{display:flex;gap:18px;align-items:baseline;padding:13px 0;border-bottom:1px solid var(--line)}
+  .agenda .n{font-family:var(--mono);color:var(--seal);font-size:14px;min-width:30px}
+  .agenda .t{font-size:17px;color:var(--white)}
+  .agenda .t small{display:block;color:var(--muted);font-size:13.5px;margin-top:3px;font-weight:400}
+  .agenda .time{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+  /* ---------- Code block ---------- */
+  .code{
+    background:#0C1019;border:1px solid var(--line);border-radius:13px;
+    font-family:var(--mono);font-size:clamp(12.5px,1.05vw,15px);line-height:1.7;
+    overflow:hidden;
+  }
+  .code .bar{display:flex;align-items:center;gap:8px;padding:11px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+  .code .bar .b{width:11px;height:11px;border-radius:50%;background:var(--muted-2)}
+  .code .bar .label{margin-left:8px;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .code pre{padding:18px 20px;overflow:auto;white-space:pre}
+  .tok-method{color:var(--seal);font-weight:700}
+  .tok-url{color:var(--signal)}
+  .tok-key{color:#8FB3E8}
+  .tok-str{color:#9BD8A0}
+  .tok-num{color:#E0A82E}
+  .tok-com{color:var(--muted-2)}
+  .tok-punc{color:var(--muted)}
+
+  /* ---------- Method / verb chips ---------- */
+  .verbs{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+  .verb{display:grid;grid-template-columns:96px 1fr;gap:18px;align-items:center;
+    padding:14px 18px;background:var(--ink-2);border:1px solid var(--line);border-radius:12px}
+  .verb .m{font-family:var(--mono);font-weight:700;font-size:15px;text-align:center;
+    padding:6px 0;border-radius:7px}
+  .m.get{background:rgba(79,209,197,.14);color:var(--signal)}
+  .m.post{background:rgba(91,209,122,.14);color:var(--green)}
+  .m.put{background:rgba(224,168,46,.16);color:var(--amber)}
+  .m.del{background:rgba(240,104,91,.14);color:var(--coral)}
+  .verb .d{font-size:15px;color:var(--muted)}
+  .verb .d b{color:var(--white)}
+
+  /* ---------- Status rows ---------- */
+  .status-list{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+  .srow{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+  .srow .code-n{font-family:var(--mono);font-weight:700;font-size:clamp(22px,2.4vw,32px);min-width:90px}
+  .srow .desc b{display:block;font-size:17px;margin-bottom:2px}
+  .srow .desc span{font-size:14.5px;color:var(--muted)}
+  .c-green{color:var(--green)} .c-amber{color:var(--amber)} .c-coral{color:var(--coral)}
+
+  /* ---------- HTTP anatomy ---------- */
+  .anatomy{display:flex;flex-direction:column;gap:14px;font-family:var(--mono);margin-top:8px}
+  .arow{display:grid;grid-template-columns:130px 1fr;gap:18px;align-items:center;
+    padding:15px 20px;background:var(--ink-2);border:1px solid var(--line);border-radius:12px;position:relative;overflow:hidden}
+  .arow .tag{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--seal)}
+  .arow .val{font-size:clamp(13px,1.1vw,16px);color:var(--white)}
+  .arow .val .muted{color:var(--muted)}
+
+  /* persona pills */
+  .personas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+  .persona{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .persona .ic{font-size:24px;margin-bottom:12px}
+  .persona h4{font-size:16px;margin-bottom:6px;font-weight:600}
+  .persona p{font-size:13.5px;color:var(--muted);line-height:1.5}
+
+  .pull{font-family:var(--display);font-size:clamp(22px,2.6vw,34px);line-height:1.25;
+    font-weight:500;letter-spacing:-.01em;max-width:24ch}
+  .pull em{font-style:italic;color:var(--seal)}
+
+  .footnote{position:absolute;left:clamp(28px,5vw,90px);bottom:clamp(50px,7vh,76px);
+    font-family:var(--mono);font-size:12px;color:var(--muted-2);letter-spacing:.06em}
+
+  ul.clean{list-style:none;display:flex;flex-direction:column;gap:13px;margin-top:14px}
+  ul.clean li{display:flex;gap:14px;align-items:flex-start;font-size:16px;color:var(--muted);line-height:1.5}
+  ul.clean li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--seal);margin-top:9px;flex-shrink:0}
+  ul.clean li b{color:var(--white)}
+
+  .kbd{font-family:var(--mono);font-size:11px;background:var(--ink-3);border:1px solid var(--line);
+    border-radius:5px;padding:2px 7px;color:var(--white)}
+
+  /* presenter notes drawer */
+  .notes{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:#0B0E16;border-top:2px solid var(--seal);
+    padding:22px clamp(28px,5vw,90px) 30px;transform:translateY(100%);
+    transition:transform .35s ease;max-height:42vh;overflow:auto;
+  }
+  .notes.open{transform:none}
+  .notes .h{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--seal);margin-bottom:10px}
+  .notes p{font-size:15px;color:var(--white);line-height:1.55;max-width:90ch}
+  .hint{position:fixed;right:clamp(20px,4vw,48px);top:54px;z-index:30;font-family:var(--mono);
+    font-size:11px;color:var(--muted-2);letter-spacing:.08em}
+
+  @media (max-width:880px){
+    .split,.split.narrow{grid-template-columns:1fr;gap:24px}
+    .cards.c3{grid-template-columns:1fr}
+    .cards.c2{grid-template-columns:1fr}
+    .agenda{grid-template-columns:1fr;gap:6px}
+    .personas{grid-template-columns:1fr}
+    .canvas-wrap{min-height:230px}
+    .slide{padding-top:72px}
+    .verb{grid-template-columns:80px 1fr}
+    .arow{grid-template-columns:96px 1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .slide{transition:opacity .2s}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><b>JUDIT</b> · WORKSHOP</div>
+  <div class="right" id="blocoLabel">Abertura</div>
+</div>
+<div class="hint">Setas ← → para navegar · <span class="kbd">N</span> notas</div>
+
+<div class="deck" id="deck">
+
+  <!-- 0 · CAPA -->
+  <section class="slide" data-scene="ambient" data-bloco="Abertura"
+    data-notes="Boas-vindas. Em uma frase: hoje vamos abrir a 'caixa-preta' que o time técnico usa todo dia, pra que você entenda o que o cliente da API quer dizer quando fala 'requisição', 'endpoint' ou 'webhook'. Não precisa saber programar — a ideia é tirar o medo da palavra.">
+    <div class="canvas-wrap" style="position:absolute;inset:0;opacity:.5"><canvas></canvas></div>
+    <div class="slide-body" style="position:relative;z-index:2">
+      <div class="eyebrow"><span class="bar"></span>Workshop interno · não-técnico</div>
+      <h1>Por trás de<br>cada <em>requisição</em>.</h1>
+      <p class="lead">Como a internet conversa, o que é uma API, e por que entender isso muda toda conversa que você tem com um cliente da Judit.</p>
+    </div>
+  </section>
+
+  <!-- 1 · PAUTA -->
+  <section class="slide" data-scene="" data-bloco="Roteiro"
+    data-notes="Mostre o mapa do dia. Avise que vamos do mais geral (a internet) para o mais específico (a API da Judit), e que tem mão na massa no meio: todo mundo vai abrir o Postman/Insomnia e fazer uma requisição de verdade.">
+    <div class="slide-body">
+      <div class="eyebrow"><span class="num">01</span><span class="bar"></span>O roteiro de hoje</div>
+      <h2>Do cano à <em>Judit</em>, em sete paradas</h2>
+      <div class="agenda">
+        <div class="item"><span class="n">1</span><span class="t">Como a internet funciona<small>Cliente, servidor e o "carteiro" no meio</small></span><span class="time">20min</span></div>
+        <div class="item"><span class="n">2</span><span class="t">O protocolo HTTP<small>A língua que computadores usam pra pedir coisas</small></span><span class="time">30min</span></div>
+        <div class="item"><span class="n">3</span><span class="t">JSON<small>O formato em que os dados chegam</small></span><span class="time">10min</span></div>
+        <div class="item"><span class="n">4</span><span class="t">Cliente HTTP + demo<small>Postman/Insomnia numa API pública</small></span><span class="time">25min</span></div>
+        <div class="item"><span class="n">5</span><span class="t">A API da Judit<small>Os três serviços e o jeito que respondem</small></span><span class="time">30min</span></div>
+        <div class="item"><span class="n">6</span><span class="t">Mão na massa na Judit<small>Criar consulta, acompanhar, monitorar</small></span><span class="time">30min</span></div>
+        <div class="item"><span class="n">7</span><span class="t">Por que isso importa pro cliente<small>Conectando tudo ao dia a dia</small></span><span class="time">15min</span></div>
+        <div class="item"><span class="n">·</span><span class="t">Intervalo<small>Café antes da parte da Judit</small></span><span class="time">10min</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · POR QUE ESTAMOS AQUI -->
+  <section class="slide" data-scene="" data-bloco="Contexto"
+    data-notes="Aterrissar o 'porquê'. O cliente de API não compra uma tela bonita — ele compra um cano de dados que vai entrar no sistema dele. Quando você entende o cano, você para de ficar perdido quando ele diz 'minha requisição deu 401' ou 'o webhook não chegou'. Use as três personas como exemplos reais de quem nos contrata.">
+    <div class="split narrow">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">02</span><span class="bar"></span>Por que estamos aqui</div>
+        <h2>O cliente de API compra um <em>cano</em>, não uma tela</h2>
+        <p class="lead">Ele liga o sistema dele direto no nosso. Se você entende como esse cano funciona, nenhuma conversa técnica te pega de surpresa.</p>
+      </div>
+      <div>
+        <div class="personas">
+          <div class="persona"><div class="ic">⚖️</div><h4>Escritório de advocacia</h4><p>Quer todos os processos num painel só e ser avisado a cada andamento.</p></div>
+          <div class="persona"><div class="ic">🏦</div><h4>Fintech / bureau</h4><p>Roda análise de risco em massa por CPF e CNPJ, em tempo real.</p></div>
+          <div class="persona"><div class="ic">🛡️</div><h4>Compliance / KYC</h4><p>Checa processos e mandados de uma contraparte no onboarding.</p></div>
+        </div>
+        <p style="margin-top:18px;font-size:14.5px;color:var(--muted)">Todos eles falam a mesma língua com a gente: <span class="hl">requisições HTTP</span>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · COMO A INTERNET FUNCIONA -->
+  <section class="slide" data-scene="internet" data-bloco="1 · A internet"
+    data-notes="A analogia central do dia: pedir algo pela internet é como mandar uma carta. Você (cliente) escreve um pedido, o carteiro leva até o destino (servidor), e ele te manda uma resposta de volta. O 'endereço' é a URL; o DNS é a lista telefônica que transforma o nome (judit.io) no número da casa (o IP).">
+    <div class="split">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">03</span><span class="bar"></span>1 · Como a internet funciona</div>
+        <h2>Tudo é alguém <em>pedindo</em> e alguém <em>respondendo</em></h2>
+        <p class="lead">Quando você abre um site, seu computador (o <span class="hl2">cliente</span>) manda um pedido para outro computador (o <span class="hl">servidor</span>), que devolve a resposta. Igualzinho a uma carta.</p>
+        <ul class="clean">
+          <li><b>Endereço (URL)</b> — pra onde a carta vai. Ex.: <span style="font-family:var(--mono);color:var(--signal)">judit.io</span></li>
+          <li><b>DNS</b> — a lista telefônica que descobre o "número da casa" (o IP) a partir do nome.</li>
+          <li><b>Pacote</b> — a carta viaja em pedacinhos e é remontada no destino.</li>
+        </ul>
+      </div>
+      <div class="canvas-wrap"><canvas></canvas></div>
+    </div>
+  </section>
+
+  <!-- 4 · O PROTOCOLO HTTP -->
+  <section class="slide" data-scene="http" data-bloco="2 · HTTP"
+    data-notes="HTTP é só o 'idioma' combinado dessa carta. Tem regras fixas: você manda uma REQUISIÇÃO num formato, o servidor manda uma RESPOSTA noutro. Toda vez é ida e volta. Esse ciclo (request → response) é o coração de tudo que vem depois.">
+    <div class="split">
+      <div class="canvas-wrap"><canvas></canvas></div>
+      <div class="stack">
+        <div class="eyebrow"><span class="num">04</span><span class="bar"></span>2 · O protocolo HTTP</div>
+        <h2>HTTP é a <em>etiqueta</em> dessa conversa</h2>
+        <p class="lead">É o conjunto de regras combinado para pedir e responder. Sempre em pares: uma <span class="hl2">requisição</span> vai, uma <span class="hl">resposta</span> volta.</p>
+        <p style="margin-top:14px;font-size:15px;color:var(--muted)">O cliente nunca recebe nada sem pedir primeiro. Por isso "fazer uma requisição" é, literalmente, fazer um pedido seguindo essa etiqueta.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · ANATOMIA DA REQUISIÇÃO -->
+  <section class="slide" data-scene="" data-bloco="2 · HTTP"
+    data-notes="Abra o 'envelope'. Toda requisição tem 4 partes. Método = o que você quer fazer. URL = onde. Cabeçalhos (headers) = bilhetes na margem, tipo 'aqui está minha chave de acesso'. Corpo (body) = o conteúdo do pedido. Aponte que a api-key da Judit vai num header.">
+    <div class="split narrow">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">05</span><span class="bar"></span>2 · Anatomia</div>
+        <h2>O que vai dentro do <em>envelope</em></h2>
+        <p class="lead">Toda requisição tem quatro partes. Decora essas quatro e você lê qualquer requisição do mundo.</p>
+      </div>
+      <div class="anatomy">
+        <div class="arow"><span class="tag">Método</span><span class="val"><span class="tok-method">POST</span> &nbsp;<span class="muted">— o que eu quero fazer</span></span></div>
+        <div class="arow"><span class="tag">URL</span><span class="val"><span class="tok-url">requests.production.judit.io/requests</span></span></div>
+        <div class="arow"><span class="tag">Cabeçalhos</span><span class="val">api-key: <span class="muted">••••••</span> &nbsp;<span class="muted">— bilhetes, tipo sua chave</span></span></div>
+        <div class="arow"><span class="tag">Corpo</span><span class="val"><span class="muted">{ "search": { ... } } — o conteúdo</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · MÉTODOS -->
+  <section class="slide" data-scene="" data-bloco="2 · HTTP"
+    data-notes="Os verbos. Use a analogia de uma agenda de contatos: GET = ler, POST = adicionar novo, PUT = editar, DELETE = apagar. Na Judit, criar uma consulta é POST; perguntar 'já ficou pronto?' é GET.">
+    <div class="stack">
+      <div class="eyebrow"><span class="num">06</span><span class="bar"></span>2 · Os verbos</div>
+      <h2>Quatro <em>verbos</em> dão conta de quase tudo</h2>
+      <div class="verbs">
+        <div class="verb"><span class="m get">GET</span><span class="d"><b>Ler / buscar.</b> "Me mostra o que tem aí." Nunca muda nada.</span></div>
+        <div class="verb"><span class="m post">POST</span><span class="d"><b>Criar.</b> "Adiciona uma coisa nova." Na Judit: criar uma consulta.</span></div>
+        <div class="verb"><span class="m put">PUT</span><span class="d"><b>Atualizar.</b> "Troca o que já existe por essa versão."</span></div>
+        <div class="verb"><span class="m del">DELETE</span><span class="d"><b>Apagar.</b> "Remove essa coisa." Na Judit: parar um monitoramento.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · STATUS CODES -->
+  <section class="slide" data-scene="status" data-bloco="2 · HTTP"
+    data-notes="O semáforo da resposta. Todo retorno vem com um número de 3 dígitos. 2xx = deu certo. 4xx = você errou (faltou chave, número inválido). 5xx = o servidor falhou. Esse é o vocabulário que aparece nos chamados de suporte: '401', '404', '500'.">
+    <div class="split">
+      <div class="canvas-wrap"><canvas></canvas></div>
+      <div class="stack">
+        <div class="eyebrow"><span class="num">07</span><span class="bar"></span>2 · Status</div>
+        <h2>O <em>semáforo</em> da resposta</h2>
+        <p class="lead">Toda resposta volta com um número de três dígitos dizendo o que aconteceu.</p>
+        <div class="status-list">
+          <div class="srow"><span class="code-n c-green">2xx</span><span class="desc"><b>Deu certo</b><span>200 OK, 201 Criado. O pedido funcionou.</span></span></div>
+          <div class="srow"><span class="code-n c-amber">4xx</span><span class="desc"><b>Erro de quem pediu</b><span>401 sem chave, 404 não existe, 400 mal formado.</span></span></div>
+          <div class="srow"><span class="code-n c-coral">5xx</span><span class="desc"><b>Erro do servidor</b><span>500 algo quebrou do outro lado. Não foi você.</span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · JSON -->
+  <section class="slide" data-scene="" data-bloco="3 · JSON"
+    data-notes="JSON é só uma forma organizada de escrever dados que humano e máquina leem. Pares de 'chave: valor', dentro de chaves {}. Compare com uma ficha cadastral. É nesse formato que a Judit devolve os processos.">
+    <div class="split">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">08</span><span class="bar"></span>3 · JSON</div>
+        <h2>JSON é uma <em>ficha</em> que a máquina lê</h2>
+        <p class="lead">Pares de <span class="hl">chave</span>: <span class="hl2">valor</span>, agrupados entre chaves. É assim que os dados vão e voltam nas requisições.</p>
+        <ul class="clean">
+          <li>Cada informação tem um <b>nome</b> (a chave) e um <b>conteúdo</b> (o valor).</li>
+          <li>Vale texto, número, verdadeiro/falso e listas.</li>
+          <li>É o formato que a <b>API da Judit</b> usa pra entregar processos.</li>
+        </ul>
+      </div>
+      <div class="code">
+        <div class="bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="label">resposta.json</span></div>
+<pre>{
+  <span class="tok-key">"nome"</span><span class="tok-punc">:</span> <span class="tok-str">"Maria Souza"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"tem_processos"</span><span class="tok-punc">:</span> <span class="tok-num">true</span><span class="tok-punc">,</span>
+  <span class="tok-key">"quantidade"</span><span class="tok-punc">:</span> <span class="tok-num">3</span><span class="tok-punc">,</span>
+  <span class="tok-key">"tribunais"</span><span class="tok-punc">:</span> <span class="tok-punc">[</span><span class="tok-str">"TJSP"</span><span class="tok-punc">,</span> <span class="tok-str">"TJRJ"</span><span class="tok-punc">]</span>
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · CLIENTE HTTP -->
+  <section class="slide" data-scene="" data-bloco="4 · Cliente HTTP"
+    data-notes="Apresente o Postman/Insomnia como o 'editor de cartas' das requisições. Em vez de escrever código, você preenche campos: método, URL, headers, body, e aperta Send. É exatamente o que o cliente usa pra testar nossa API antes de programar.">
+    <div class="split narrow">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">09</span><span class="bar"></span>4 · A ferramenta</div>
+        <h2>Postman e Insomnia: o <em>editor de cartas</em></h2>
+        <p class="lead">Em vez de programar, você preenche campos numa telinha e aperta <span class="hl">Send</span>. Mesma requisição, sem código.</p>
+        <p style="margin-top:12px;font-size:15px;color:var(--muted)">É o que o cliente abre quando quer "testar o endpoint" antes de ligar a Judit no sistema dele.</p>
+      </div>
+      <div class="code">
+        <div class="bar"><span class="b" style="background:var(--coral)"></span><span class="b" style="background:var(--amber)"></span><span class="b" style="background:var(--green)"></span><span class="label">Postman</span></div>
+<pre><span class="tok-com">┌─ Método ──┬─ URL ───────────────────────┐</span>
+ <span class="tok-method">POST</span>  ·  <span class="tok-url">.../requests</span>        <span class="tok-method">[ Send ]</span>
+
+<span class="tok-com">› Headers</span>
+   api-key      <span class="tok-str">••••••••••</span>
+   Content-Type <span class="tok-str">application/json</span>
+
+<span class="tok-com">› Body</span>
+   { "search": { ... } }</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · DEMO API PÚBLICA -->
+  <section class="slide" data-scene="" data-bloco="4 · Demo"
+    data-notes="Primeira mão na massa, com algo familiar: o ViaCEP, que devolve um endereço a partir do CEP. É um GET puro, sem chave, sem body. Todo mundo faz junto no Postman. Objetivo: sentir o ciclo pedir→responder antes de ir pra Judit.">
+    <div class="split">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">10</span><span class="bar"></span>4 · Demo ao vivo</div>
+        <h2>Primeira requisição: um <em>CEP</em></h2>
+        <p class="lead">Vamos pedir um endereço a partir do CEP usando o ViaCEP — uma API pública e gratuita. Um <span class="hl2">GET</span> simples, sem chave.</p>
+        <ul class="clean">
+          <li>Método <b>GET</b>, sem corpo, sem cabeçalho especial.</li>
+          <li>Aperta Send e o endereço volta em <b>JSON</b>.</li>
+          <li>Repare no status <b class="c-green">200 OK</b> no canto.</li>
+        </ul>
+      </div>
+      <div class="code">
+        <div class="bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="label">GET · viacep</span></div>
+<pre><span class="tok-method">GET</span> <span class="tok-url">https://viacep.com.br/ws/01001000/json/</span>
+
+<span class="tok-com">// resposta · 200 OK</span>
+{
+  <span class="tok-key">"cep"</span><span class="tok-punc">:</span> <span class="tok-str">"01001-000"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"logradouro"</span><span class="tok-punc">:</span> <span class="tok-str">"Praça da Sé"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"bairro"</span><span class="tok-punc">:</span> <span class="tok-str">"Sé"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"localidade"</span><span class="tok-punc">:</span> <span class="tok-str">"São Paulo"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"uf"</span><span class="tok-punc">:</span> <span class="tok-str">"SP"</span>
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · CHEGAMOS NA JUDIT -->
+  <section class="slide" data-scene="judit" data-bloco="5 · Judit"
+    data-notes="Agora o pulo do gato. A Judit é um cano que substitui dezenas de robôs em cada tribunal. O cliente faz UMA requisição HTTP e a gente vai buscar nos tribunais (TJSP, TRT, BNMP, etc.) e devolve pronto. Três serviços, uma mesma chave (api-key no header).">
+    <div class="split">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">11</span><span class="bar"></span>5 · A API da Judit</div>
+        <h2>Uma requisição. <em>Todos</em> os tribunais.</h2>
+        <p class="lead">Em vez de manter robôs em cada tribunal, o cliente faz uma chamada HTTP e a Judit busca e devolve os dados prontos. Autenticação por <span class="hl">api-key</span> no cabeçalho.</p>
+        <div class="cards c3" style="margin-top:20px">
+          <div class="card"><div class="k">requests</div><h3>Assíncrono</h3><p>Vai ao tribunal em tempo real. Resposta chega depois.</p></div>
+          <div class="card"><div class="k">lawsuits</div><h3>Síncrono</h3><p>Lê o datalake da Judit. Volta em milissegundos.</p></div>
+          <div class="card"><div class="k">tracking</div><h3>Monitora</h3><p>Acompanha o processo e avisa quando muda.</p></div>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas></canvas></div>
+    </div>
+  </section>
+
+  <!-- 12 · SÍNCRONO VS ASSÍNCRONO -->
+  <section class="slide" data-scene="syncasync" data-bloco="5 · Judit"
+    data-notes="O conceito que mais confunde cliente. Síncrono = pediu, esperou na linha, recebeu na hora (datalake). Assíncrono = pediu, recebeu só um protocolo (request_id), e o resultado completo chega depois — porque buscar no tribunal demora. Esse 'depois' é o que o webhook resolve.">
+    <div class="split">
+      <div class="canvas-wrap"><canvas></canvas></div>
+      <div class="stack">
+        <div class="eyebrow"><span class="num">12</span><span class="bar"></span>5 · O conceito-chave</div>
+        <h2>Na hora, ou <em>depois</em>?</h2>
+        <p class="lead">A diferença que mais gera dúvida no cliente.</p>
+        <div class="status-list" style="margin-top:6px">
+          <div class="srow"><span class="code-n c-green" style="font-size:18px;min-width:120px">SÍNCRONO</span><span class="desc"><b>Espera na linha</b><span>Pede e recebe na hora, do datalake. Milissegundos.</span></span></div>
+          <div class="srow"><span class="code-n c-amber" style="font-size:18px;min-width:120px">ASSÍNCRONO</span><span class="desc"><b>Recebe um protocolo</b><span>Volta um <i>request_id</i>; o resultado chega depois, quando o tribunal responder.</span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · DEMO JUDIT - CRIAR -->
+  <section class="slide" data-scene="" data-bloco="6 · Mão na massa"
+    data-notes="Passo 1 do fluxo assíncrono: criar a consulta. POST em /requests, com a api-key no header e o tipo de busca no body. A Judit responde na hora com um request_id e status 'pending' — é o protocolo do pedido, não o resultado ainda.">
+    <div class="split">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">13</span><span class="bar"></span>6 · Passo 1 — criar</div>
+        <h2>Pedindo os processos de um <em>CPF</em></h2>
+        <p class="lead">Um <span class="hl2">POST</span> abre a consulta. A Judit responde na hora com um protocolo (<span class="hl">request_id</span>) e status <b>pending</b>.</p>
+        <p style="margin-top:12px;font-size:14.5px;color:var(--muted)">Repare: a chave vai no <b>header</b> <span style="font-family:var(--mono)">api-key</span> — não é <span style="font-family:var(--mono)">Authorization: Bearer</span>.</p>
+      </div>
+      <div class="code">
+        <div class="bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="label">POST /requests</span></div>
+<pre><span class="tok-method">POST</span> <span class="tok-url">https://requests.production.judit.io/requests</span>
+api-key<span class="tok-punc">:</span> <span class="tok-str">SUA_CHAVE</span>
+
+{
+  <span class="tok-key">"search"</span><span class="tok-punc">:</span> {
+    <span class="tok-key">"search_type"</span><span class="tok-punc">:</span> <span class="tok-str">"cpf"</span><span class="tok-punc">,</span>
+    <span class="tok-key">"search_key"</span><span class="tok-punc">:</span> <span class="tok-str">"999.999.999-99"</span>
+  }
+}
+
+<span class="tok-com">// resposta</span>
+{ <span class="tok-key">"request_id"</span><span class="tok-punc">:</span> <span class="tok-str">"84b4d8f5-..."</span><span class="tok-punc">,</span> <span class="tok-key">"status"</span><span class="tok-punc">:</span> <span class="tok-str">"pending"</span> }</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · DEMO JUDIT - ACOMPANHAR/RESULTADO -->
+  <section class="slide" data-scene="" data-bloco="6 · Mão na massa"
+    data-notes="Passos 2 e 3. Com o request_id na mão, você pergunta 'já ficou pronto?' (GET /requests/{id}). Quando vira 'completed', você puxa o resultado (GET /responses). Mencione o webhook como alternativa: em vez de ficar perguntando, a Judit te avisa sozinha.">
+    <div class="split">
+      <div class="code">
+        <div class="bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="label">acompanhar &amp; obter</span></div>
+<pre><span class="tok-com">// 2 · já ficou pronto?</span>
+<span class="tok-method">GET</span> <span class="tok-url">.../requests/84b4d8f5-...</span>
+api-key<span class="tok-punc">:</span> <span class="tok-str">SUA_CHAVE</span>
+
+→ { <span class="tok-key">"status"</span><span class="tok-punc">:</span> <span class="tok-str">"completed"</span> }
+
+<span class="tok-com">// 3 · pegar o resultado</span>
+<span class="tok-method">GET</span> <span class="tok-url">.../responses?page=1</span>
+api-key<span class="tok-punc">:</span> <span class="tok-str">SUA_CHAVE</span>
+
+→ { <span class="tok-key">"page_data"</span><span class="tok-punc">:</span> [ <span class="tok-com">/* processos */</span> ] }</pre>
+      </div>
+      <div class="stack">
+        <div class="eyebrow"><span class="num">14</span><span class="bar"></span>6 · Passos 2 e 3</div>
+        <h2>Acompanhar e <em>colher</em> o resultado</h2>
+        <p class="lead">Com o protocolo em mãos, você checa o status até virar <b class="c-green">completed</b> e então busca os dados.</p>
+        <ul class="clean">
+          <li><b>GET /requests/{id}</b> — "já terminou?"</li>
+          <li><b>GET /responses</b> — colhe os processos em JSON.</li>
+          <li><b>Ou webhook:</b> a Judit te avisa sozinha quando ficar pronto.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 · TRACKING / WEBHOOK -->
+  <section class="slide" data-scene="webhook" data-bloco="6 · Mão na massa"
+    data-notes="O monitoramento (tracking) é o oposto da consulta pontual: você cadastra um processo UMA vez e a Judit fica vigiando. Quando há andamento novo, ela liga de volta no cliente (o webhook) — a resposta chega sem ninguém ter perguntado. É o que advogado adora: nunca perder prazo.">
+    <div class="split">
+      <div class="stack">
+        <div class="eyebrow"><span class="num">15</span><span class="bar"></span>6 · Monitoramento</div>
+        <h2>O <em>webhook</em>: a resposta que liga de volta</h2>
+        <p class="lead">No <span class="hl">tracking</span> você cadastra um processo uma vez. Quando há andamento novo, a Judit chama o cliente — sem ele perguntar.</p>
+        <div class="code" style="margin-top:18px">
+          <div class="bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="label">POST /tracking</span></div>
+<pre>{
+  <span class="tok-key">"recurrence"</span><span class="tok-punc">:</span> <span class="tok-num">1</span><span class="tok-punc">,</span>
+  <span class="tok-key">"search"</span><span class="tok-punc">:</span> {
+    <span class="tok-key">"search_type"</span><span class="tok-punc">:</span> <span class="tok-str">"lawsuit_cnj"</span><span class="tok-punc">,</span>
+    <span class="tok-key">"search_key"</span><span class="tok-punc">:</span> <span class="tok-str">"1111111-04.1111.1.11.1111"</span>
+  }
+}</pre>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas></canvas></div>
+    </div>
+  </section>
+
+  <!-- 16 · POR QUE IMPORTA -->
+  <section class="slide" data-scene="" data-bloco="7 · Fechamento"
+    data-notes="Costure tudo. Agora que você sabe o que é requisição, status, síncrono/assíncrono e webhook, traduza as falas reais do cliente. Faça este slide virar conversa: peça exemplos que a galera já ouviu de clientes.">
+    <div class="stack">
+      <div class="eyebrow"><span class="num">16</span><span class="bar"></span>7 · Por que isso importa</div>
+      <h2>Agora você <em>traduz</em> o cliente</h2>
+      <div class="cards c2" style="margin-top:18px">
+        <div class="card"><div class="k">o cliente diz</div><h3>"Minha requisição deu 401"</h3><p>Você sabe: é a <span class="hl">api-key</span> faltando ou errada no cabeçalho. Resolvido em segundos.</p></div>
+        <div class="card"><div class="k">o cliente diz</div><h3>"O resultado não veio na hora"</h3><p>É uma consulta <span class="hl">assíncrona</span>: voltou um protocolo, o dado chega depois — ou via webhook.</p></div>
+        <div class="card"><div class="k">o cliente diz</div><h3>"O webhook não chegou"</h3><p>Você entende o monitoramento e sabe pra quem encaminhar com o contexto certo.</p></div>
+        <div class="card"><div class="k">o cliente diz</div><h3>"Preciso de dado em tempo real"</h3><p>Você aponta o serviço certo: <span class="hl">requests</span> on-demand, não o datalake síncrono.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17 · ENCERRAMENTO -->
+  <section class="slide" data-scene="ambient" data-bloco="7 · Fechamento"
+    data-notes="Encerre. Recapitule em uma frase: requisição é um pedido, resposta tem um status, e a Judit é o cano que busca nos tribunais. Convide pra prática: deixe a coleção do Postman da Judit com eles pra brincarem depois. Abra pra perguntas.">
+    <div class="canvas-wrap" style="position:absolute;inset:0;opacity:.4"><canvas></canvas></div>
+    <div class="slide-body" style="position:relative;z-index:2">
+      <div class="eyebrow"><span class="bar"></span>Fim · obrigado</div>
+      <h1>Pedir, receber,<br><em>entender</em>.</h1>
+      <p class="lead">Toda integração da Judit é só isso, repetido: um pedido sai, uma resposta volta com um status, e os tribunais respondem através do nosso cano. Agora é com vocês — abram o Postman e brinquem.</p>
+      <p style="margin-top:20px;font-family:var(--mono);font-size:13px;color:var(--muted)">Perguntas? · Coleção Postman da Judit disponível na documentação.</p>
+    </div>
+  </section>
+
+</div>
+
+<!-- chrome -->
+<div class="progress" id="progress"></div>
+<div class="counter"><b id="cur">01</b> / <span id="total">18</span></div>
+<div class="nav">
+  <button id="prev" aria-label="Anterior">←</button>
+  <button id="next" aria-label="Próximo">→</button>
+</div>
+
+<div class="notes" id="notes">
+  <div class="h">Nota do apresentador</div>
+  <p id="notesText"></p>
+</div>
+
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cur = 0;
+
+  // ---------- progress + counter ----------
+  const progress = document.getElementById('progress');
+  slides.forEach((_,i)=>{
+    const b=document.createElement('button');
+    b.addEventListener('click',()=>go(i));
+    progress.appendChild(b);
+  });
+  document.getElementById('total').textContent = String(slides.length).padStart(2,'0');
+  const dots = Array.from(progress.children);
+  const blocoLabel = document.getElementById('blocoLabel');
+  const notesEl = document.getElementById('notes');
+  const notesText = document.getElementById('notesText');
+
+  function render(){
+    slides.forEach((s,i)=>{
+      s.classList.toggle('active', i===cur);
+      s.classList.toggle('prev', i<cur);
+    });
+    dots.forEach((d,i)=>d.classList.toggle('on', i===cur));
+    document.getElementById('cur').textContent = String(cur+1).padStart(2,'0');
+    document.getElementById('prev').disabled = cur===0;
+    document.getElementById('next').disabled = cur===slides.length-1;
+    blocoLabel.textContent = slides[cur].dataset.bloco || '';
+    notesText.textContent = slides[cur].dataset.notes || 'Sem notas para este slide.';
+    activateScene(cur);
+  }
+  function go(i){ cur=Math.max(0,Math.min(slides.length-1,i)); render(); }
+  function next(){ go(cur+1); }
+  function prev(){ go(cur-1); }
+
+  document.getElementById('next').addEventListener('click',next);
+  document.getElementById('prev').addEventListener('click',prev);
+  window.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();next();}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prev();}
+    else if(e.key==='Home'){go(0);}
+    else if(e.key==='End'){go(slides.length-1);}
+    else if(e.key.toLowerCase()==='n'){notesEl.classList.toggle('open');}
+  });
+  // touch swipe
+  let tx=0;
+  window.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
+  window.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-tx;
+    if(Math.abs(dx)>60){ dx<0?next():prev(); }
+  },{passive:true});
+
+  /* =====================================================================
+     CANVAS ANIMATION ENGINE
+     ===================================================================== */
+  const C = getComputedStyle(document.documentElement);
+  const COL = {
+    ink: C.getPropertyValue('--ink').trim(),
+    ink2:'#171E2C', ink3:'#1F2738',
+    white:'#ECE7DB', muted:'#8A93A6', muted2:'#5E6678',
+    seal:'#1FC16B', signal:'#4FD1C5', green:'#5BD17A', coral:'#F0685B', amber:'#E0A82E',
+    line:'rgba(243,238,227,0.14)'
+  };
+
+  let active=null, raf=null, t0=0;
+
+  function setupCanvas(canvas){
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const r=canvas.getBoundingClientRect();
+    canvas.width=Math.max(1,r.width*dpr);
+    canvas.height=Math.max(1,r.height*dpr);
+    const ctx=canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx,w:r.width,h:r.height};
+  }
+
+  function activateScene(i){
+    if(raf){cancelAnimationFrame(raf);raf=null;}
+    active=null;
+    const slide=slides[i];
+    const sceneName=slide.dataset.scene;
+    const canvas=slide.querySelector('canvas');
+    if(!sceneName||!canvas||!SCENES[sceneName]) return;
+    const dim=setupCanvas(canvas);
+    active={canvas,ctx:dim.ctx,w:dim.w,h:dim.h,scene:SCENES[sceneName],state:{}};
+    t0=performance.now();
+    if(reduce){ active.scene(active.ctx,active.w,active.h,0.35,active.state,true); return; }
+    loop();
+  }
+  function loop(){
+    if(!active)return;
+    const t=(performance.now()-t0)/1000;
+    active.ctx.clearRect(0,0,active.w,active.h);
+    active.scene(active.ctx,active.w,active.h,t,active.state,false);
+    raf=requestAnimationFrame(loop);
+  }
+  window.addEventListener('resize',()=>{ if(active && slides[cur].dataset.scene) activateScene(cur); });
+
+  /* ---------- drawing helpers ---------- */
+  function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  }
+  function node(ctx,x,y,w,h,title,sub,accent){
+    ctx.save();
+    roundRect(ctx,x-w/2,y-h/2,w,h,12);
+    ctx.fillStyle=COL.ink2;ctx.fill();
+    ctx.lineWidth=1.4;ctx.strokeStyle=accent||COL.line;ctx.stroke();
+    ctx.fillStyle=COL.white;ctx.font='600 15px Inter,sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(title,x,sub?y-9:y);
+    if(sub){ctx.fillStyle=COL.muted;ctx.font='12px "JetBrains Mono",monospace';ctx.fillText(sub,x,y+11);}
+    ctx.restore();
+  }
+  function packet(ctx,x,y,label,color){
+    ctx.save();
+    const w=Math.max(40,label.length*9+22),h=26;
+    ctx.shadowColor=color;ctx.shadowBlur=18;
+    roundRect(ctx,x-w/2,y-h/2,w,h,7);
+    ctx.fillStyle=color;ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle=COL.ink;ctx.font='700 12px "JetBrains Mono",monospace';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(label,x,y+1);
+    ctx.restore();
+  }
+  function dashedPath(ctx,x1,y1,x2,y2){
+    ctx.save();ctx.strokeStyle=COL.line;ctx.lineWidth=1.5;
+    ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.restore();
+  }
+  function label(ctx,x,y,txt,color,align){
+    ctx.save();ctx.fillStyle=color||COL.muted;
+    ctx.font='11px "JetBrains Mono",monospace';ctx.textAlign=align||'center';
+    ctx.textBaseline='middle';ctx.fillText(txt,x,y);ctx.restore();
+  }
+
+  /* ---------- round-trip generator ---------- */
+  function roundTrip(opts){
+    return function(ctx,w,h,t,st){
+      const cx1=w*0.18, cx2=w*0.82, cy=h*0.5;
+      const nw=Math.min(150,w*0.26), nh=64;
+      dashedPath(ctx,cx1+nw/2,cy,cx2-nw/2,cy);
+      // cycle
+      const dur=opts.dur||5;
+      const p=(t%dur)/dur;
+      let px,py=cy-40, going=true, lbl=opts.req, col=opts.reqCol;
+      if(p<0.42){ const e=ease(p/0.42); px=(cx1+nw/2)+(cx2-cx1-nw)*e; }
+      else if(p<0.55){ px=cx2-nw/2; label(ctx,cx2,cy+nh/2+20,'processando…',COL.muted); }
+      else if(p<0.97){ const e=ease((p-0.55)/0.42); px=(cx2-nw/2)-(cx2-cx1-nw)*e; going=false; lbl=opts.res; col=opts.resCol; }
+      else { px=cx1+nw/2; }
+      // nodes
+      node(ctx,cx1,cy,nw,nh,opts.left,opts.leftSub,COL.signal);
+      node(ctx,cx2,cy,nw,nh,opts.right,opts.rightSub,COL.seal);
+      if(px!==undefined){ packet(ctx,px,py,lbl,col); }
+      // legend
+      label(ctx,cx1,cy+nh/2+20,'CLIENTE',COL.signal);
+      label(ctx,cx2,cy+nh/2+20, (p>=0.55&&p<0.97)?'':'SERVIDOR',COL.seal);
+      label(ctx,(cx1+cx2)/2, py-22, going?'requisição →':'← resposta', going?COL.signal:COL.seal);
+    };
+  }
+
+  /* ---------- SCENES ---------- */
+  const SCENES = {
+    ambient:function(ctx,w,h,t,st){
+      if(!st.dots){st.dots=Array.from({length:26},()=>({
+        x:Math.random()*w,y:Math.random()*h,r:Math.random()*2.4+0.6,
+        s:Math.random()*0.25+0.05,o:Math.random()*0.5+0.15
+      }));}
+      st.dots.forEach((d,i)=>{
+        d.x+=d.s; if(d.x>w+10)d.x=-10;
+        const pulse=0.5+0.5*Math.sin(t*0.8+i);
+        ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);
+        ctx.fillStyle=`rgba(31,193,107,${d.o*pulse})`;ctx.fill();
+      });
+      // a few traveling packets
+      for(let k=0;k<3;k++){
+        const period=7+k*2.4;
+        const p=((t+k*2)%period)/period;
+        const y=h*(0.3+0.2*k);
+        const x=p*(w+80)-40;
+        ctx.save();ctx.globalAlpha=0.55;
+        packet(ctx,x,y,k%2?'200':'GET',k%2?COL.green:COL.signal);
+        ctx.restore();
+      }
+    },
+
+    internet: roundTrip({left:'Você',leftSub:'navegador',right:'Servidor',rightSub:'judit.io',
+      req:'GET',reqCol:COL.signal,res:'200',resCol:COL.green,dur:5}),
+
+    http: roundTrip({left:'Cliente',leftSub:'pede',right:'Servidor',rightSub:'responde',
+      req:'requisição',reqCol:COL.signal,res:'resposta',resCol:COL.seal,dur:5.4}),
+
+    status:function(ctx,w,h,t,st){
+      const cx=w*0.5, top=h*0.16, gap=Math.min(h*0.24,110), r=Math.min(w,h)*0.085;
+      const lights=[
+        {c:COL.green,txt:'2xx',sub:'deu certo'},
+        {c:COL.amber,txt:'4xx',sub:'erro de quem pediu'},
+        {c:COL.coral,txt:'5xx',sub:'erro do servidor'}
+      ];
+      // housing
+      ctx.save();
+      roundRect(ctx,cx-r-26,top-r-22,(r+26)*2,gap*2+r*2+44,26);
+      ctx.fillStyle=COL.ink2;ctx.fill();ctx.strokeStyle=COL.line;ctx.lineWidth=1.4;ctx.stroke();
+      ctx.restore();
+      const activeIdx=Math.floor(t/1.4)%3;
+      lights.forEach((l,i)=>{
+        const y=top+gap*i;
+        const on=i===activeIdx;
+        ctx.save();
+        if(on){ctx.shadowColor=l.c;ctx.shadowBlur=34;}
+        ctx.beginPath();ctx.arc(cx,y,r,0,7);
+        ctx.fillStyle=on?l.c:'rgba(255,255,255,0.06)';ctx.fill();
+        ctx.shadowBlur=0;ctx.lineWidth=1.5;ctx.strokeStyle=on?l.c:COL.muted2;ctx.stroke();
+        ctx.fillStyle=on?COL.ink:COL.muted;ctx.font='700 17px "JetBrains Mono",monospace';
+        ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(l.txt,cx,y);
+        ctx.restore();
+        // side label
+        label(ctx,cx+r+44,y,l.sub,on?l.c:COL.muted2,'left');
+      });
+    },
+
+    judit:function(ctx,w,h,t,st){
+      const ax=w*0.13, jx=w*0.5, cy=h*0.5;
+      const courts=[{n:'TJSP',y:h*0.22},{n:'TRT',y:h*0.5},{n:'BNMP',y:h*0.78}];
+      const cxC=w*0.86;
+      // links
+      courts.forEach(c=>dashedPath(ctx,jx+60,cy,cxC-46,c.y));
+      dashedPath(ctx,ax+52,cy,jx-70,cy);
+      // animated packets app->judit->courts and back
+      const dur=5;
+      const p=(t%dur)/dur;
+      // app -> judit
+      if(p<0.3){const e=ease(p/0.3);const x=(ax+52)+((jx-70)-(ax+52))*e;packet(ctx,x,cy-34,'api-key',COL.signal);}
+      // judit -> courts
+      else if(p<0.6){const e=ease((p-0.3)/0.3);courts.forEach((c,i)=>{const x=(jx+60)+((cxC-46)-(jx+60))*e;const y=cy+(c.y-cy)*e;ctx.save();ctx.globalAlpha=0.85;packet(ctx,x,y,'busca',COL.amber);ctx.restore();});}
+      // courts -> judit -> app (data)
+      else {const e=ease((p-0.6)/0.4);const x=(jx-70)-((jx-70)-(ax+52))*e;packet(ctx,x,cy-34,'dados',COL.green);}
+      // nodes
+      node(ctx,ax,cy,90,58,'App','cliente',COL.signal);
+      // judit hub
+      ctx.save();
+      const jr=46;
+      ctx.shadowColor=COL.seal;ctx.shadowBlur=24;
+      ctx.beginPath();ctx.arc(jx,cy,jr,0,7);ctx.fillStyle=COL.ink2;ctx.fill();
+      ctx.shadowBlur=0;ctx.lineWidth=2;ctx.strokeStyle=COL.seal;ctx.stroke();
+      ctx.fillStyle=COL.seal;ctx.font='700 18px Fraunces,serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('Judit',jx,cy);ctx.restore();
+      courts.forEach(c=>node(ctx,cxC,c.y,84,46,c.n,'',COL.line));
+      label(ctx,cxC,h*0.06,'TRIBUNAIS',COL.muted);
+    },
+
+    syncasync:function(ctx,w,h,t,st){
+      const lx=w*0.16, rx=w*0.84;
+      const yS=h*0.3, yA=h*0.72;
+      const nw=Math.min(120,w*0.2);
+      // labels
+      label(ctx,lx,yS-58,'SÍNCRONO',COL.green,'center');
+      label(ctx,lx,yA-58,'ASSÍNCRONO',COL.amber,'center');
+      dashedPath(ctx,lx+nw/2,yS,rx-nw/2,yS);
+      dashedPath(ctx,lx+nw/2,yA,rx-nw/2,yA);
+      // sync: quick round trip on the line
+      const ds=3.2, ps=(t%ds)/ds;
+      let sx;
+      if(ps<0.45){sx=(lx+nw/2)+((rx-nw/2)-(lx+nw/2))*ease(ps/0.45);packet(ctx,sx,yS-34,'GET',COL.signal);}
+      else if(ps<0.55){sx=rx-nw/2;}
+      else{sx=(rx-nw/2)-((rx-nw/2)-(lx+nw/2))*ease((ps-0.55)/0.45);packet(ctx,sx,yS-34,'dados',COL.green);}
+      // async: post -> quick id back -> long wait -> webhook
+      const da=8, pa=(t%da)/da;
+      if(pa<0.18){const x=(lx+nw/2)+((rx-nw/2)-(lx+nw/2))*ease(pa/0.18);packet(ctx,x,yA-34,'POST',COL.signal);}
+      else if(pa<0.34){const x=(rx-nw/2)-((rx-nw/2)-(lx+nw/2))*ease((pa-0.18)/0.16);packet(ctx,x,yA-34,'request_id',COL.amber);}
+      else if(pa<0.78){label(ctx,(lx+rx)/2,yA-34,'… buscando no tribunal …',COL.muted2);
+        // pulsing dots
+        const n=Math.floor(((pa-0.34)/0.44)*3)%3;
+        for(let i=0;i<3;i++){ctx.beginPath();ctx.arc((lx+rx)/2-12+i*12,yA-12,2.4,0,7);ctx.fillStyle=i===n?COL.amber:COL.muted2;ctx.fill();}
+      }
+      else{const x=(rx-nw/2)-((rx-nw/2)-(lx+nw/2))*ease((pa-0.78)/0.22);packet(ctx,x,yA-34,'resultado',COL.green);}
+      // nodes
+      node(ctx,lx,yS,nw,50,'Cliente','',COL.signal);
+      node(ctx,rx,yS,nw,50,'Datalake','',COL.green);
+      node(ctx,lx,yA,nw,50,'Cliente','',COL.signal);
+      node(ctx,rx,yA,nw,50,'Tribunal','',COL.amber);
+    },
+
+    webhook:function(ctx,w,h,t,st){
+      const cx1=w*0.2, cx2=w*0.8, cy=h*0.5, nw=Math.min(140,w*0.26), nh=60;
+      dashedPath(ctx,cx1+nw/2,cy-12,cx2-nw/2,cy-12);
+      dashedPath(ctx,cx2-nw/2,cy+12,cx1+nw/2,cy+12);
+      const dur=6.5, p=(t%dur)/dur;
+      // 1: register (client->judit)
+      if(p<0.22){const x=(cx1+nw/2)+((cx2-nw/2)-(cx1+nw/2))*ease(p/0.22);packet(ctx,x,cy-12,'cadastra',COL.signal);}
+      else if(p<0.5){label(ctx,(cx1+cx2)/2,cy-40,'Judit vigia o processo…',COL.muted);}
+      // 2: callback (judit->client) appears later, unrequested
+      else {const x=(cx2-nw/2)-((cx2-nw/2)-(cx1+nw/2))*ease((p-0.5)/0.45);packet(ctx,x,cy+12,'novidade!',COL.green);
+        label(ctx,(cx1+cx2)/2,cy+44,'webhook: a Judit liga de volta',COL.green);}
+      node(ctx,cx1,cy,nw,nh,'Cliente','recebe sozinho',COL.signal);
+      node(ctx,cx2,cy,nw,nh,'Judit','monitora',COL.seal);
+    }
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
