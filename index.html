@@ -258,7 +258,7 @@
     data-notes="Boas-vindas. Em uma frase: hoje vamos abrir a 'caixa-preta' que o time técnico usa todo dia, pra que você entenda o que o cliente da API quer dizer quando fala 'requisição', 'endpoint' ou 'webhook'. Não precisa saber programar — a ideia é tirar o medo da palavra.">
     <div class="canvas-wrap" style="position:absolute;inset:0;opacity:.5"><canvas></canvas></div>
     <div class="slide-body" style="position:relative;z-index:2">
-      <div class="eyebrow"><span class="bar"></span>Workshop interno · não-técnico</div>
+      <div class="eyebrow"><span class="bar"></span>Workshop interno · JUDIT.IO</div>
       <h1>Por trás de<br>cada <em>requisição</em>.</h1>
       <p class="lead">Como a internet conversa, o que é uma API, e por que entender isso muda toda conversa que você tem com um cliente da Judit.</p>
     </div>
@@ -269,7 +269,7 @@
     data-notes="Mostre o mapa do dia. Avise que vamos do mais geral (a internet) para o mais específico (a API da Judit), e que tem mão na massa no meio: todo mundo vai abrir o Postman/Insomnia e fazer uma requisição de verdade.">
     <div class="slide-body">
       <div class="eyebrow"><span class="num">01</span><span class="bar"></span>O roteiro de hoje</div>
-      <h2>Do cano à <em>Judit</em>, em sete paradas</h2>
+      <h2>Da internet à <em>Judit</em>, em sete paradas</h2>
       <div class="agenda">
         <div class="item"><span class="n">1</span><span class="t">Como a internet funciona<small>Cliente, servidor e o "carteiro" no meio</small></span><span class="time">20min</span></div>
         <div class="item"><span class="n">2</span><span class="t">O protocolo HTTP<small>A língua que computadores usam pra pedir coisas</small></span><span class="time">30min</span></div>
@@ -285,12 +285,12 @@
 
   <!-- 2 · POR QUE ESTAMOS AQUI -->
   <section class="slide" data-scene="" data-bloco="Contexto"
-    data-notes="Aterrissar o 'porquê'. O cliente de API não compra uma tela bonita — ele compra um cano de dados que vai entrar no sistema dele. Quando você entende o cano, você para de ficar perdido quando ele diz 'minha requisição deu 401' ou 'o webhook não chegou'. Use as três personas como exemplos reais de quem nos contrata.">
+    data-notes="Aterrissar o 'porquê'. O cliente de API não compra uma tela bonita — ele encaixa o motor da Judit por baixo do sistema dele. Quando você entende esse motor, você para de ficar perdido quando ele diz 'minha requisição deu 401' ou 'o webhook não chegou'. Use as três personas como exemplos reais de quem nos contrata.">
     <div class="split narrow">
       <div class="stack">
         <div class="eyebrow"><span class="num">02</span><span class="bar"></span>Por que estamos aqui</div>
-        <h2>O cliente de API compra um <em>cano</em>, não uma tela</h2>
-        <p class="lead">Ele liga o sistema dele direto no nosso. Se você entende como esse cano funciona, nenhuma conversa técnica te pega de surpresa.</p>
+        <h2>O cliente de API embute um <em>motor</em>, não uma tela</h2>
+        <p class="lead">Ele pluga a Judit por baixo do próprio produto. Se você entende como esse motor funciona, nenhuma conversa técnica te pega de surpresa.</p>
       </div>
       <div>
         <div class="personas">
@@ -469,7 +469,7 @@
 
   <!-- 11 · CHEGAMOS NA JUDIT -->
   <section class="slide" data-scene="judit" data-bloco="5 · Judit"
-    data-notes="Agora o pulo do gato. A Judit é um cano que substitui dezenas de robôs em cada tribunal. O cliente faz UMA requisição HTTP e a gente vai buscar nos tribunais (TJSP, TRT, BNMP, etc.) e devolve pronto. Três serviços, uma mesma chave (api-key no header).">
+    data-notes="Agora o pulo do gato. A Judit é o motor que substitui dezenas de robôs em cada tribunal. O cliente faz UMA requisição HTTP e a gente vai buscar nos tribunais (TJSP, TRT, BNMP, etc.) e devolve pronto. Três serviços, uma mesma chave (api-key no header).">
     <div class="split">
       <div class="stack">
         <div class="eyebrow"><span class="num">11</span><span class="bar"></span>5 · A API da Judit</div>
@@ -601,12 +601,12 @@ api-key<span class="tok-punc">:</span> <span class="tok-str">SUA_CHAVE</span>
 
   <!-- 17 · ENCERRAMENTO -->
   <section class="slide" data-scene="ambient" data-bloco="7 · Fechamento"
-    data-notes="Encerre. Recapitule em uma frase: requisição é um pedido, resposta tem um status, e a Judit é o cano que busca nos tribunais. Convide pra prática: deixe a coleção do Postman da Judit com eles pra brincarem depois. Abra pra perguntas.">
+    data-notes="Encerre. Recapitule em uma frase: requisição é um pedido, resposta tem um status, e a Judit é o motor que busca nos tribunais. Convide pra prática: deixe a coleção do Postman da Judit com eles pra brincarem depois. Abra pra perguntas.">
     <div class="canvas-wrap" style="position:absolute;inset:0;opacity:.4"><canvas></canvas></div>
     <div class="slide-body" style="position:relative;z-index:2">
       <div class="eyebrow"><span class="bar"></span>Fim · obrigado</div>
       <h1>Pedir, receber,<br><em>entender</em>.</h1>
-      <p class="lead">Toda integração da Judit é só isso, repetido: um pedido sai, uma resposta volta com um status, e os tribunais respondem através do nosso cano. Agora é com vocês — abram o Postman e brinquem.</p>
+      <p class="lead">Toda integração da Judit é só isso, repetido: um pedido sai, uma resposta volta com um status, e a Judit busca a resposta nos tribunais por você. Agora é com vocês — abram o Postman e brinquem.</p>
       <p style="margin-top:20px;font-family:var(--mono);font-size:13px;color:var(--muted)">Perguntas? · Coleção Postman da Judit disponível na documentação.</p>
     </div>
   </section>
@@ -777,7 +777,7 @@ api-key<span class="tok-punc">:</span> <span class="tok-str">SUA_CHAVE</span>
       const p=(t%dur)/dur;
       let px,py=cy-40, going=true, lbl=opts.req, col=opts.reqCol;
       if(p<0.42){ const e=ease(p/0.42); px=(cx1+nw/2)+(cx2-cx1-nw)*e; }
-      else if(p<0.55){ px=cx2-nw/2; label(ctx,cx2,cy+nh/2+20,'processando…',COL.muted); }
+      else if(p<0.55){ px=cx2-nw/2; label(ctx,cx2,cy+nh/2+42,'processando…',COL.muted); }
       else if(p<0.97){ const e=ease((p-0.55)/0.42); px=(cx2-nw/2)-(cx2-cx1-nw)*e; going=false; lbl=opts.res; col=opts.resCol; }
       else { px=cx1+nw/2; }
       // nodes
@@ -786,7 +786,7 @@ api-key<span class="tok-punc">:</span> <span class="tok-str">SUA_CHAVE</span>
       if(px!==undefined){ packet(ctx,px,py,lbl,col); }
       // legend
       label(ctx,cx1,cy+nh/2+20,'CLIENTE',COL.signal);
-      label(ctx,cx2,cy+nh/2+20, (p>=0.55&&p<0.97)?'':'SERVIDOR',COL.seal);
+      label(ctx,cx2,cy+nh/2+20,'SERVIDOR',COL.seal);
       label(ctx,(cx1+cx2)/2, py-22, going?'requisição →':'← resposta', going?COL.signal:COL.seal);
     };
   }
